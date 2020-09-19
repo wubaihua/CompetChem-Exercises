@@ -1,14 +1,15 @@
-program crawdad03
+program crawdad05
     use LAPACK95
-    !use mkl95_lapack 
     implicit real*8(a-h,o-z)
     !real*8 s(7,7),sn(7,7),t(7,7),v(7,7),h(7,7),work(200),w(7),LS(7,7),Lambda(7,7),Sneg(7,7),F(7,7),eplsion(7),C(7,7),D(7,7),vt(7,7),Di(7,7),Cp(7,7)
-    real*8,allocatable ::mole(:,:),s(:,:),sn(:,:),t(:,:),v(:,:),h(:,:),w(:),LS(:,:),work(:),miux(:,:),miuy(:,:),miuz(:,:)
-    real*8,allocatable :: Lambda(:,:),Sneg(:,:),F(:,:),eplsion(:),C(:,:),D(:,:),vt(:,:),Di(:,:),Cp(:,:),eri(:,:,:,:),Fmo(:,:)
+    real*8,allocatable ::mole(:,:),s(:,:),sn(:,:),t(:,:),v(:,:),h(:,:),w(:),LS(:,:),work(:),miux(:,:),miuy(:,:),miuz(:,:),dints(:,:,:,:)
+    real*8,allocatable :: Lambda(:,:),Sneg(:,:),F(:,:),eplsion(:),C(:,:),D(:,:),vt(:,:),Di(:,:),Cp(:,:),eri(:,:,:,:),Fmo(:,:),erimo(:,:,:,:)
+    real*8,allocatable :: t1(:,:),t2(:,:,:,:),Fcc(:,:),Wcc(:,:,:,:),Fockcc(:,:),Hcc(:,:),tau1(:,:,:,:),tau2(:,:,:,:),D1(:,:),D2(:,:,:,:)
+    real*8,allocatable :: cis(:,:),cis_eng(:),cis_vec(:,:)
     !real*8 eri(7**2,7**2)
     !real*8 eri(7,7,7,7)
     !real*8 work(200)
-    integer,external:: dindex
+    integer,external:: dindex,delta
     integer i,j,k,l,ij,ji,kl,lk,ijkl,jikl
  
 !***************************************************
@@ -46,6 +47,7 @@ program crawdad03
         nele=nele+mole(1,i)
     end do
     write(*,*)"Nele=",nele
+    nmo=2*nbasis
     
     allocate(s(nbasis,nbasis))
     allocate(sn(nbasis,nbasis))
@@ -69,6 +71,10 @@ program crawdad03
     allocate(miux(nbasis,nbasis))
     allocate(miuy(nbasis,nbasis))
     allocate(miuz(nbasis,nbasis))
+    allocate(erimo(nbasis,nbasis,nbasis,nbasis))
+    
+    
+    
     
     
 !***************************************************
@@ -224,8 +230,7 @@ program crawdad03
 !***************************************************
 !Calculate S^-1/2=sneg
 !***************************************************         
-    !call dsyev('V','L',nbasis,sn,nbasis,w,work,3*nbasis,info)
-    call syev(sn,w,'V','L')
+    call dsyev('V','L',nbasis,sn,nbasis,w,work,3*nbasis,info)   
     LS=sn 
     !write(*,*)"LS="
     !do i=1,nbasis
@@ -234,7 +239,7 @@ program crawdad03
     !write(*,*) "Lambda="
     Lambda=0.0
     do i=1,nbasis
-        Lambda(i,i)=w(i)**-0.5!Now Lambda is just ¦Ë^-1/2
+        Lambda(i,i)=w(i)**-0.5!Now Lambda is just ï¿½ï¿½^-1/2
         !write(*,*) Lambda(i,i)
     end do
     
@@ -307,7 +312,7 @@ program crawdad03
 
     
     istep=1
-    call cpu_time(t1)
+    call cpu_time(t5)
 !***************************************************
 !Compute the new Fock matrix and compute the new 
 !density matrix and energies
@@ -397,9 +402,9 @@ program crawdad03
     rmsd=rmsd**0.5
     write(*,*)"deltaE=",deltaE
     write(*,*)"RMSD=",rmsd
-    if(deltaE<1.0E-8 .and. rmsd<1.0E-10)then
-        write(*,*)"SCF Done!"
-        call CPU_TIME(t2)
+    if(deltaE<1.0E-6 .and. rmsd<1.0E-8)then
+        write(*,*)"Hartree-Fock SCF Done!"
+        call CPU_TIME(t6)
     else
         D=Di
         Etot=Etoti
@@ -408,99 +413,207 @@ program crawdad03
         goto 500
     end if
     write(*,*) "SCF steps=",istep
-    write(*,*) "SCF time=",t2-t1
+    write(*,*) "SCF time=",t6-t5
+    
     
     D=Di
     Etot=Etoti
     Eelec=Eeleci
+    write(*,*) "ESCF=",Etot
     
-!!***************************************************
-!!transform the Fock matrix to the MO basis
-!!***************************************************      
-!    Fmo=0.0  
-!    do i=1,nbasis
-!        do j=1,nbasis
-!            do k=1,nbasis
-!                do l=1,nbasis
-!                    Fmo(i,j)=Fmo(i,j)+C(k,j)*C(l,i)*F(k,l)
-!                end do
-!            end do
-!        end do
-!    end do
-!
-!    write(*,*) "the Fock matrix in the MO basis is:" 
-!    do i=1,nbasis
-!        write(*,*) Fmo(i,:)
-!    end do
-!    
-!!***************************************************
-!!compute the electronic contribution to the electric-dipole moment
-!!***************************************************     
-!    miux=0.0
-!    miuy=0.0
-!    miuz=0.0
-!    open(27, file='mux.txt', status='old')
-!    do 
-!        read(27,*,iostat=ierr) i,j,din 
-!        miux(i,j)=din
-!        miux(j,i)=miux(i,j)
-!        if(ierr<0)then
-!            exit
-!        end if
-!    end do
-!    
-!    open(28, file='muy.txt', status='old')
-!    do 
-!        read(28,*,iostat=ierr) i,j,din 
-!        miuy(i,j)=din
-!        miuy(j,i)=miuy(i,j)
-!        if(ierr<0)then
-!            exit
-!        end if
-!    end do
-!    
-!    open(29, file='muz.txt', status='old')
-!    do 
-!        read(29,*,iostat=ierr) i,j,din 
-!        miuz(i,j)=din
-!        miuz(j,i)=miuz(i,j)
-!        if(ierr<0)then
-!            exit
-!        end if
-!    end do
-!    
-!    ux=0.0
-!    uy=0.0
-!    uz=0.0
-!    do i=1,nbasis
-!        do j=1,nbasis
-!           ux=ux+2.0*Di(i,j)*miux(i,j)
-!        end do
-!    end do
-!    do i=1,nbasis
-!        do j=1,nbasis
-!           uy=uy+2.0*Di(i,j)*miuy(i,j)
-!        end do
-!    end do
-!    do i=1,nbasis
-!        do j=1,nbasis
-!           uz=uz+2.0*Di(i,j)*miuz(i,j)
-!        end do
-!    end do
-!    
-!    write(*,*)"mux=",ux
-!    write(*,*)"muy=",uy
-!    write(*,*)"muz=",uz
-!    write(*,*)"Total dipole moment (au) = ",sqrt(ux**2+uy**2+uz**2)
+!***************************************************
+!Transform the Two-Electron Integrals to the MO Basis
+!Noddy Algorithm
+!***************************************************  
+   !write(*,*)"Noddy Algorithm"
+   ! call cpu_time(t3)
+   ! erimo=0.0
+   ! do i=1,nbasis
+   !     do j=1,nbasis
+   !         do k=1,nbasis
+   !             do l=1,nbasis
+   !                 do i1=1,nbasis
+   !                     do j1=1,nbasis
+   !                         do k1=1,nbasis
+   !                             do l1=1,nbasis
+   !                                 erimo(i,j,k,l)=erimo(i,j,k,l)+C(i1,i)*C(j1,j)*C(k1,k)*C(l1,l)*eri(i1,j1,k1,l1)
+   !                             end do
+   !                         end do
+   !                     end do
+   !                 end do
+   !             end do
+   !         end do
+   !     end do
+   ! end do
+    
+  
+!***************************************************
+!Transform the Two-Electron Integrals to the MO Basis
+!Smarter Algorithm 
+!***************************************************      
+    write(*,*)"Smarter Algorithm"
+    call cpu_time(t3)
+    erimo=0.0    
+    !temp1=0.0
+    !temp2=0.0
+    !temp3=0.0
+    !temp4=0.0
+    sum1=0.0
+    sum2=0.0
+    sum3=0.0
+    do i=1,nbasis
+        do j=1,nbasis
+            do k=1,nbasis
+                do l=1,nbasis
+                    do i1=1,nbasis
+                        do j1=1,nbasis
+                            do k1=1,nbasis
+                                do l1=1,nbasis
+                                    temp1=C(l1,l)*eri(i1,j1,k1,l1)
+                                    sum1=temp1+sum1
+                                end do
+                                temp2=C(k1,k)*sum1
+                                sum2=sum2+temp2
+                                sum1=0.0
+                            end do
+                            temp3=C(j1,j)*sum2
+                            sum3=sum3+temp3
+                            sum2=0.0
+                        end do
+                        temp4=C(i1,i)*sum3
+                        erimo(i,j,k,l)=erimo(i,j,k,l)+temp4
+                        sum3=0.0
+                    end do
+                end do
+            end do
+        end do
+    end do
+    
+                  
+!***************************************************
+!Compute the MP2 energy
+!***************************************************                          
+    Emp2=0.0
+    do i=1,nele/2
+        do j=1,nele/2
+            do ia=nele/2+1,nbasis
+                do ib=nele/2+1,nbasis
+                    Emp2=Emp2+erimo(i,ia,j,ib)*(2.0*erimo(i,ia,j,ib)-erimo(i,ib,j,ia))/(eplsion(i)+eplsion(j)-eplsion(ia)-eplsion(ib))
+                end do
+            end do
+        end do
+    end do
+    write(*,*) "The MP2 energy is EMP2=",Emp2
+    call cpu_time(t4)
+    write(*,*) "MP2 time=",t4-t3
+    write(*,*) "Etot=",Etot+Emp2
+
+   
+!*****************************************************************
+!Translate MO Spatial-Orbital Integrals to Spin-Orbital Integrals
+!*****************************************************************   
+    allocate(dints(nmo,nmo,nmo,nmo))!<ij||kl>
+    allocate(t1(nmo,nmo))!
+    allocate(t2(nmo,nmo,nmo,nmo))
+    allocate(Fcc(nmo,nmo))
+    allocate(Wcc(nmo,nmo,nmo,nmo))
+    allocate(Fockcc(nmo,nmo))
+    allocate(Hcc(nmo,nmo))
+    allocate(tau1(nmo,nmo,nmo,nmo))!tau~
+    allocate(tau2(nmo,nmo,nmo,nmo))!tau
+    allocate(D1(nmo,nmo))
+    allocate(D2(nmo,nmo,nmo,nmo))
+    !wcc=0.0
+    !fcc=0.0
     
     
-pause 
+    do i=1,nmo
+        do j=1,nmo
+            do k=1,nmo
+                do l=1,nmo
+                    call mo(mi,i)
+                    call mo(mk,k)
+                    call mo(mj,j)
+                    call mo(ml,l)
+                    call equ(n1,i,k)
+                    call equ(n2,j,l)
+                    value1=erimo(mi,mk,mj,ml)*n1*n2 
+                    call equ(n3,i,l)
+                    call equ(n4,j,k)
+                    value2=erimo(mi,ml,mj,mk)*n3*n4 
+                    dints(i,j,k,l)=value1-value2
+                end do
+            end do
+        end do
+    end do
+
+    write(*,*) dints
+    
+!*****************************************************************
+!Build the CIS matrix
+!*****************************************************************   
+ 
+    allocate(cis(40,40))
+    allocate(cis_eng(40))
+    allocate(cis_vec(40,40))
+    index1=0
+    index2=0
+    do i=1,nele/2
+        do ia=nele/2+1,nmo
+            index1=index1+1
+            do j=1,nele/2
+                do ib=nele/2+1,nmo
+                    index2=index2+1
+                    cis(index1,index2)=F(ia,ib)*delta(i,j)-F(i,j)*delta(ia,ib)+dints(ia,j,i,ib)
+                end do
+            end do
+            index2=0
+        end do
+    end do
+    write(*,*) "The CIS matrix is:"
+    do i=1,40
+        write(*,*) cis(i,i)
+    end do
+    
+    cis_vec=cis
+    call dsyev('V','L',40,cis_vec,40,cis_eng,work,120,info)   
+    write(*,*) "The CIS energe is:"
+    do i=1,40
+        write(*,*) cis_eng(i)
+    end do
+    
+    
+    
+    
+    
+    
 
 end program
 
 
-function dindex(i,j)
-implicit none
-integer i,j,dindex
-dindex=i*(i+1)/2+j
+subroutine equ(a,x,y)!judge if x%2==y%2 to compute the spin integrals
+integer a,x,y
+if(mod(x,2)==mod(y,2)) then
+    a=1
+else
+    a=0
+end if
+end subroutine
+
+subroutine mo(a,x)!build the relationship between nbasis and nmo
+integer a,x
+if(mod(x,2)==0) then
+    a=x/2
+else
+    a=(x+1)/2
+end if
+end subroutine
+
+function delta(i,j)!delta-index
+integer i,j,delta
+if(i==j)then
+    delta=1
+else
+    delta=0
+end if
 end function
