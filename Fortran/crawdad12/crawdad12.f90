@@ -105,9 +105,9 @@ program crawdad05
     !    end do
     !end do
     write(*,*) "The overlap integral matrix is:"
-    do i=1,nbasis
-        write(*,*) s(:,i)
-    end do
+    ! do i=1,nbasis
+    !     write(*,*) s(:,i)
+    ! end do
     
 !***************************************************
 !Read the kinetic integral matrix=t
@@ -124,9 +124,9 @@ program crawdad05
         end do
     end do
     write(*,*) "The kinetic integral matrix is:"
-    do i=1,nbasis
-        write(*,*) t(:,i)
-    end do      
+    ! do i=1,nbasis
+    !     write(*,*) t(:,i)
+    ! end do      
         
 !***************************************************
 !Read the nuclear-attraction integral matrix=v
@@ -143,17 +143,17 @@ program crawdad05
         end do
     end do
     write(*,*) "The nuclear-attraction integral matrix is:"
-    do i=1,nbasis
-        write(*,*) v(:,i)
-   end do   
+    ! do i=1,nbasis
+    !     write(*,*) v(:,i)
+    ! end do   
 !***************************************************
 !Calculate the core Hamiltonian=h
 !***************************************************    
     h=t+v   
     write(*,*) "The core Hamiltonian matrix is:"
-    do i=1,nbasis
-        write(*,*) h(:,i)
-   end do  
+    ! do i=1,nbasis
+    !     write(*,*) h(:,i)
+    ! end do  
     
 !***************************************************
 !Read the two-electron repulsion integrals=eri
@@ -245,18 +245,18 @@ program crawdad05
     
     sneg=matmul(matmul(LS,Lambda),transpose(LS))
     write(*,*) "S^-1/2="  
-        do i=1,nbasis
-            write(*,*) sneg(:,i)
-        end do
+        ! do i=1,nbasis
+        !     write(*,*) sneg(:,i)
+        ! end do
     
 !***************************************************
 !Build the initial density
 !***************************************************         
     F=matmul(matmul(transpose(sneg),h),sneg)!Build the intital Fock matrix
     write(*,*) "The intital Fock matrix is:"
-    do i=1,nbasis
-        write(*,*) F(i,:)
-    end do
+    ! do i=1,nbasis
+    !     write(*,*) F(i,:)
+    ! end do
     do i=1,nbasis
         do j=1,i
             C(i,j)=F(i,j)
@@ -273,9 +273,9 @@ program crawdad05
     
     
     write(*,*) "The  initial MO coefficient matrix is:"
-    do i=1,nbasis
-        write(*,*) C(i,:)
-    end do
+    ! do i=1,nbasis
+    !     write(*,*) C(i,:)
+    ! end do
     D=0.0
     do i=1,nbasis
         do j=1,nbasis
@@ -285,9 +285,9 @@ program crawdad05
         end do
     end do
     write(*,*) "The  initial density matrix is:"
-    do i=1,nbasis
-        write(*,*) D(i,:)
-    end do
+    ! do i=1,nbasis
+    !     write(*,*) D(i,:)
+    ! end do
     
 !***************************************************
 !Calculate the SCF energy
@@ -339,9 +339,9 @@ program crawdad05
         end do
     end do
     write(*,*) "The new Fock matrix is:"
-    do i=1,nbasis
-        write(*,*) F(i,:)
-    end do
+    ! do i=1,nbasis
+    !     write(*,*) F(i,:)
+    ! end do
     
     do i=1,nbasis
         do j=1,i
@@ -547,7 +547,35 @@ program crawdad05
         end do
     end do
 
-    write(*,*) dints
+    ! write(*,*) dints
+
+!*****************************************************************
+!Build the spin-orbital Fock matrix
+!*****************************************************************  
+
+    Fockcc=0.0
+    do i=1,nmo
+        do j=1,nmo
+            do m=1,nele
+                Fockcc(i,j)=Fockcc(i,j)+dints(i,m,j,m)
+            end do
+            call mo(ia,i)
+            call mo(ja,j)
+            call equ(n1,i,j)
+            Hcc(i,j)=H(ia,ja)*n1
+            Fockcc(i,j)=Fockcc(i,j)+Hcc(i,j)
+        end do
+    end do
+    write(*,*)"Hcc=",Hcc
+    !Fockcc=Fockcc+Hcc
+    write(*,*)"fockcc ="
+    do ii=1,nele
+        do ia=nele+1,nmo
+            write(*,*)" fockcc(",ii,",",ia,")=", fockcc(ii,ia)
+        end do
+    end do
+
+    
     
 !*****************************************************************
 !Build the CIS matrix
@@ -558,13 +586,15 @@ program crawdad05
     allocate(cis_vec(40,40))
     index1=0
     index2=0
-    do i=1,nele/2
-        do ia=nele/2+1,nmo
+    do i=1,nele
+        do ia=nele+1,nmo
             index1=index1+1
-            do j=1,nele/2
-                do ib=nele/2+1,nmo
+            write(*,*) "index1=",index1
+            do j=1,nele
+                do ib=nele+1,nmo
                     index2=index2+1
-                    cis(index1,index2)=F(ia,ib)*delta(i,j)-F(i,j)*delta(ia,ib)+dints(ia,j,i,ib)
+                    cis(index1,index2)=Fockcc(ia,ib)*delta(i,j)-Fockcc(i,j)*delta(ia,ib)+dints(ia,j,i,ib)
+                    ! cis(index1,index2)=F(ia,ib)*delta(i,j)-F(i,j)*delta(ia,ib)+dints(ia,j,i,ib)
                 end do
             end do
             index2=0
@@ -572,7 +602,7 @@ program crawdad05
     end do
     write(*,*) "The CIS matrix is:"
     do i=1,40
-        write(*,*) cis(i,i)
+        write(*,*) cis(1,i)
     end do
     
     cis_vec=cis
